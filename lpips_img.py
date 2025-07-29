@@ -1,69 +1,27 @@
 import lpips
-import cv2
 import torchvision.transforms as transforms
 from PIL import Image
 from split_image import split_image
 import shutil
 import os
 from abs_difference import abs_diff
-import time
 from datetime import datetime
 import csv
 
-grid_rows = 16
-grid_cols = 16
-THRESHOLD = 0.075
+grid_rows = 16 # Default: 16
+grid_cols = 16 # Default: 16
+THRESHOLD = 0.1 # Default: 0.1
 change_detected = False
-target_times = [
-        "10:00",
-        "21:00"
-    ] # Times when the camera takes a picture
-# Default: 09:00 and 21:00
+
+before_file_name = 'RestoredSunBench'
+after_file_name = 'MinorCurveDamageSunBench'
 
 def load_image(path):
-    img = Image.open(path).convert("RGB").resize((256, 256))
+    img = Image.open(path).convert("RGB").resize((512, 512))
     transform = transforms.ToTensor()
     return transform(img).unsqueeze(0) * 2 - 1  # Normalize to [-1, 1]
 
-def take_photo(base_filename='Captured', save_dir='images/camera', file_type='jpg'):
-    # Ensure the save directory exists
-    if not os.path.exists(save_dir):
-        raise FileNotFoundError(f"Directory '{save_dir}' does not exist.")
-
-    # Get next available index
-    existing_files = [
-        f for f in os.listdir(save_dir)
-        if f.startswith(base_filename) and f.endswith(f'.{file_type}')
-    ]
-
-    indices = [
-        int(f.split('_')[-1].split('.')[0])
-        for f in existing_files
-        if f.split('_')[-1].split('.')[0].isdigit()
-    ]
-
-    next_index = max(indices, default=-1) + 1
-    filename = f"{base_filename}_{next_index}.{file_type}"
-    full_path = os.path.join(save_dir, filename)
-
-    # Capture photo
-    cap = cv2.VideoCapture(0)
-    if not cap.isOpened():
-        print("Error: Could not open webcam.")
-        return None
-
-    ret, frame = cap.read()
-    cap.release()
-
-    if ret:
-        cv2.imwrite(full_path, frame)
-        print(f"Photo saved to {full_path}")
-        return filename  # Return just the filename (not path)
-    else:
-        print("Error: Failed to capture image.")
-        return None
-
-def score(before_file_name='RestoredSunBench', after_file_name='OriginalSunBench', file_type='jpg', file='camera'):
+def score(before_file_name='RestoredSunBench', after_file_name='OriginalSunBench', file_type='jpg', file='test'):
     # Deletes previous files stored in patches/
     if os.listdir('patches/'):
         for f in os.listdir('patches/'):
@@ -100,7 +58,7 @@ def score(before_file_name='RestoredSunBench', after_file_name='OriginalSunBench
             dist_value = dist.item()
 
             if dist_value >= THRESHOLD:
-                print(f"Patch {i} LPIPS Distance:", dist.item())
+                print(f"Patch {i} LPIPS Distance:", dist_value)
                 change_detected = True
                 csv_writer.writerow([
                     datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -118,29 +76,10 @@ def score(before_file_name='RestoredSunBench', after_file_name='OriginalSunBench
         abs_diff(f"images/{file}/{before_file_name}.{file_type}", f"images/{file}/{after_file_name}.{file_type}")
 
 if __name__ == "__main__":
-    target_times_i = 0
-
-    os.makedirs('images/camera', exist_ok=True)
-    
-    # Take reference image once
-    reference_image = take_photo(base_filename='OriginalBench')
-
-    while True:
-        target_time = target_times[target_times_i]
-
-        now = datetime.now().strftime("%H:%M")
-        if now == target_time:
-            current_image = take_photo(base_filename='Bench')
-            if current_image:
-                score(before_file_name=current_image.split('.')[0],
-                      after_file_name=reference_image.split('.')[0],
-                      file_type='jpg',
-                      file='camera')
-                
-            target_times_i = (target_times_i + 1) % len(target_times)
-            time.sleep(61)
-        else:
-            time.sleep(1)
+    score(before_file_name=before_file_name.split('.')[0],
+          after_file_name=after_file_name.split('.')[0],
+          file_type='jpg',
+          file='test')
 
 
 """
@@ -149,19 +88,14 @@ Plan:
 # Find a way to integrate absolute difference based on reaching a particular Threshold
 # Make the program work on different time intervals, constantly comparing the last image taken (you can prob use the computer camera just to test it)
 ! Detect when people come in front of the camera with a yolo model
-- Optimize threshold and grid values (probably not)
+! Optimize threshold and grid values (probably not)
 
 Additional ideas: 
 (Last priority) Solve Brightness Problem with abs_difference
 
-(nah) Rotate the reference image weekly (e.g. every Monday).
-
-Log LPIPS scores to a CSV file.
+# Log LPIPS scores to a CSV file.
 
 Add YOLO object detection integration if people appear in the image.
-
-Run as a background service.
-
 
 
 - Done: move on to yolo prototype, gpt image analysis, and lidar when we get our hands on a camera
