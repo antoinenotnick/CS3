@@ -1,5 +1,6 @@
 import lpips
 import cv2
+import torch
 import torchvision.transforms as transforms
 from PIL import Image
 from split_image import split_image
@@ -15,15 +16,31 @@ grid_cols = 8
 THRESHOLD = 0.2
 change_detected = False
 target_times = [
-        "13:42",
-        "13:39"
+        "09:00",
+        "10:00",
+        "11:00",
+        "12:00",
+        "13:00",
+        "14:00",
+        "15:00",
+        "16:00",
+        "17:00"
     ] # Times when the camera takes a picture
-# Default: 09:00 and 21:00 (or any two times with similar light levels)
+# Default: Hourly from 09:00 to 17:00
 
 def load_image(path):
     img = Image.open(path).convert("RGB").resize((512, 512))
-    transform = transforms.ToTensor()
-    return transform(img).unsqueeze(0) * 2 - 1  # Normalize to [-1, 1]
+    img_tensor = transforms.ToTensor()(img)  # [C, H, W]
+
+    # Normalize brightness across all channels (convert to grayscale-like intensity)
+    brightness = img_tensor.mean(dim=(1, 2), keepdim=True)  # Mean per channel
+    img_tensor = img_tensor / (brightness + 1e-6)  # Prevent divide by zero
+
+    # Clamp values to [0,1] after normalization
+    img_tensor = torch.clamp(img_tensor, 0, 1)
+
+    # Normalize to LPIPS expected range [-1, 1]
+    return img_tensor.unsqueeze(0) * 2 - 1
 
 def take_photo(base_filename='Captured', save_dir='images/camera', file_type='jpg'):
     # Ensure the save directory exists
@@ -63,7 +80,7 @@ def take_photo(base_filename='Captured', save_dir='images/camera', file_type='jp
         print("Error: Failed to capture image.")
         return None
 
-def score(before_file_name='RestoredSunBench', after_file_name='OriginalSunBench', file_type='jpg', file='camera'):
+def score(before_file_name='RestoredSunBench', after_file_name='OriginalSunBench', file_type='jpg', file='test'):
     # Deletes previous files stored in patches/
     if os.listdir('patches/'):
         for f in os.listdir('patches/'):
