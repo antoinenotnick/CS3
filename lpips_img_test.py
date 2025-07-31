@@ -41,7 +41,7 @@ def score(grid_rows, grid_cols, threshold):
     split_image(f"images/{file_folder}/{before_file_name}.{file_type}", grid_rows, grid_cols, False, False)
     split_image(f"images/{file_folder}/{after_file_name}.{file_type}", grid_rows, grid_cols, False, False)
 
-    loss_fn = lpips.LPIPS(net='alex')  # 'alex', 'vgg', or 'squeeze'
+    loss_fn = lpips.LPIPS(net='vgg')  # 'alex', 'vgg', or 'squeeze'
 
     csv_path = "lpips_log.csv"
     file_exists = os.path.isfile(csv_path)

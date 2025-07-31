@@ -1,6 +1,5 @@
 import lpips
 import cv2
-import torch
 import torchvision.transforms as transforms
 from PIL import Image
 from split_image import split_image
@@ -12,10 +11,11 @@ from datetime import datetime
 import csv
 import numpy as np
 from skimage.exposure import match_histograms
+from person_detector import PersonDetector
 
 grid_rows = 8
 grid_cols = 8
-THRESHOLD = 0.35
+THRESHOLD = 0.25
 change_detected = False
 target_times = [
         "09:00",
@@ -30,6 +30,8 @@ target_times = [
     ] # Times when the camera takes a picture
 # Default: Hourly from 09:00 to 17:00
 
+person_detector = PersonDetector(confidence_threshold=0.5)
+
 def load_image(path, reference_path=None):
     img = Image.open(path).convert("RGB").resize((512, 512))
     img_np = np.array(img)
@@ -42,21 +44,6 @@ def load_image(path, reference_path=None):
     img_tensor = transforms.ToTensor()(Image.fromarray(img_np))
     
     return img_tensor.unsqueeze(0) * 2 - 1
-
-    '''
-    img = Image.open(path).convert("RGB").resize((512, 512))
-    img_tensor = transforms.ToTensor()(img)  # [C, H, W]
-
-    # Normalize brightness across all channels (convert to grayscale-like intensity)
-    brightness = img_tensor.mean(dim=(1, 2), keepdim=True)  # Mean per channel
-    img_tensor = img_tensor / (brightness + 1e-6)  # Prevent divide by zero
-
-    # Clamp values to [0,1] after normalization
-    img_tensor = torch.clamp(img_tensor, 0, 1)
-
-    # Normalize to LPIPS expected range [-1, 1]
-    return img_tensor.unsqueeze(0) * 2 - 1
-    '''
 
 def take_photo(base_filename='Captured', save_dir='images/camera', file_type='jpg'):
     # Ensure the save directory exists
@@ -127,7 +114,7 @@ def score(before_file_name='RestoredSunBench', after_file_name='OriginalSunBench
             shutil.move(f"{after_file_name}_{i}.{file_type}", after_patch)
 
             img_before = load_image(before_patch)
-            img_after = load_image(after_patch)
+            img_after = load_image(before_patch, reference_path=after_patch)
 
             dist = loss_fn(img_before, img_after)
             dist_value = dist.item()
@@ -164,7 +151,11 @@ if __name__ == "__main__":
         now = datetime.now().strftime("%H:%M")
         if now == target_time:
 
-            # While person in front of camera, time.sleep(60)
+            # Check if person is in front of camera before taking photo
+            if person_detector.capture_and_check_person():
+                # Person detected - wait for clear view
+                person_detector.wait_for_clear_view()
+
             current_image = take_photo(base_filename='Bench')
             if current_image:
                 score(before_file_name=current_image.split('.')[0],

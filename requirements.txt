@@ -1,8 +1,22 @@
+# Core LPIPS and image processing
 lpips==0.1.4
 torch>=1.7.0
 torchvision>=0.8.0
 Pillow>=8.0.0
 opencv-python>=4.5.0
-matplotlib>=3.3.0
 numpy>=1.18.0
+
+# Data analysis and visualization
+matplotlib>=3.3.0
 pandas>=1.1.0
+
+# Image processing and analysis
+scikit-image>=0.18.0
+split-image>=2.0.0
+
+# Object detection (RFDETR)
+rfdetr
+supervision
+
+# Additional dependencies that might be needed
+setuptools>=50.0.0
