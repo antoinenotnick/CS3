@@ -10,10 +10,12 @@ from abs_difference import abs_diff
 import time
 from datetime import datetime
 import csv
+import numpy as np
+from skimage.exposure import match_histograms
 
 grid_rows = 8
 grid_cols = 8
-THRESHOLD = 0.2
+THRESHOLD = 0.35
 change_detected = False
 target_times = [
         "09:00",
@@ -28,7 +30,20 @@ target_times = [
     ] # Times when the camera takes a picture
 # Default: Hourly from 09:00 to 17:00
 
-def load_image(path):
+def load_image(path, reference_path=None):
+    img = Image.open(path).convert("RGB").resize((512, 512))
+    img_np = np.array(img)
+
+    if reference_path:
+        ref_img = Image.open(reference_path).convert("RGB").resize((512, 512))
+        ref_np = np.array(ref_img)
+        img_np = match_histograms(img_np, ref_np, channel_axis=-1)
+
+    img_tensor = transforms.ToTensor()(Image.fromarray(img_np))
+    
+    return img_tensor.unsqueeze(0) * 2 - 1
+
+    '''
     img = Image.open(path).convert("RGB").resize((512, 512))
     img_tensor = transforms.ToTensor()(img)  # [C, H, W]
 
@@ -41,6 +56,7 @@ def load_image(path):
 
     # Normalize to LPIPS expected range [-1, 1]
     return img_tensor.unsqueeze(0) * 2 - 1
+    '''
 
 def take_photo(base_filename='Captured', save_dir='images/camera', file_type='jpg'):
     # Ensure the save directory exists
@@ -93,7 +109,7 @@ def score(before_file_name='RestoredSunBench', after_file_name='OriginalSunBench
     global change_detected
     change_detected = False
 
-    loss_fn = lpips.LPIPS(net='alex')  # 'alex', 'vgg', or 'squeeze'
+    loss_fn = lpips.LPIPS(net='vgg')  # 'alex', 'vgg', or 'squeeze'
 
     csv_path = "lpips_log.csv"
     file_exists = os.path.isfile(csv_path)
