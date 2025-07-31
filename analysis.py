@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 
-def visualize_heatmap(csv_path, grid_size):
+def visualize_heatmap(csv_path, grid_size, save_path=None):
     df = pd.read_csv(csv_path)
     df = df[df["Grid Rows"] == grid_size[0]]  # assumes square grid
 
@@ -20,9 +20,15 @@ def visualize_heatmap(csv_path, grid_size):
     plt.colorbar(label='LPIPS Score')
     plt.xlabel("Column")
     plt.ylabel("Row")
-    plt.show()
 
-def analyze_threshold_grid(csv_path):
+    if save_path:
+        plt.savefig(save_path)
+        print(f"Heatmap saved to {save_path}")
+        plt.close()
+    else:
+        plt.show()
+
+def analyze_threshold_grid(csv_path, save_path=None):
     df = pd.read_csv(csv_path)
     grouped = df.groupby(["Grid Rows", "Threshold"]).size().unstack(fill_value=0)
     
@@ -31,7 +37,12 @@ def analyze_threshold_grid(csv_path):
     plt.xlabel("Grid Rows")
     plt.ylabel("Patches Detected (LPIPS > Threshold)")
     plt.tight_layout()
-    plt.show()
+    
+    if save_path:
+        plt.savefig(save_path)
+        plt.close()
+    else:
+        plt.show()
 
 if __name__ == "__main__":
     csv_path = "lpips_log.csv"
@@ -40,8 +51,14 @@ if __name__ == "__main__":
         print("CSV log not found. Run LPIPS scoring first.")
         exit()
 
-    # Show heatmap for a specific grid (change as needed)
-    visualize_heatmap(csv_path, grid_size=(8, 8))  # or (4, 4), (16, 16), etc.
+    os.makedirs("images/heatmaps", exist_ok=True)
+    os.makedirs("images/threshold_grids", exist_ok=True)
+
+    # Show heatmap for a specific grid
+
+    for grid in [(2, 2), (4, 4), (8, 8), (16, 16)]:
+        heatmap_path = f"images/heatmaps/heatmap_{grid[0]}x{grid[1]}.png"
+        visualize_heatmap(csv_path, grid_size=grid, save_path=heatmap_path)
 
     # Show aggregate analysis
-    analyze_threshold_grid(csv_path)
+    analyze_threshold_grid(csv_path, save_path="images/threshold_grids/threshold_analysis.png")

@@ -11,7 +11,6 @@ while True:
     if not success:
         break
 
-    # Ask ChatGPT if -1 is ok
     detections = model.predict(frame[:, :, ::1], threshold=0.5)
 
     labels = [
