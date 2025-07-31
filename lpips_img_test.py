@@ -1,5 +1,3 @@
-# TEST FILE
-
 import lpips
 import torch
 import torchvision.transforms as transforms
@@ -104,21 +102,13 @@ if __name__ == "__main__":
 """
 Plan:
 
-# Find a way to integrate absolute difference based on reaching a particular Threshold
-# Make the program work on different time intervals, constantly comparing the last image taken (you can prob use the computer camera just to test it)
 ! Detect when people come in front of the camera with a yolo model
-! Optimize threshold and grid values (probably not)
+! Optimize threshold and grid values
 
 Additional ideas: 
 (Last priority) Solve Brightness Problem with abs_difference
 
-# Log LPIPS scores to a CSV file.
-
 Add YOLO object detection integration if people appear in the image.
-
-# Make a setup file
-
-# Find out how to add empty folders to github repo
 
 - Done: move on to yolo prototype, gpt image analysis, and lidar when we get our hands on a camera
 

@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 setup(
     name='mosaic_damage_detection',
     version='0.1.0',
-    author='Anthony Stan',
+    authors=['Anthony Stan', 'Rishith Arra'],
     description='Detect and analyze mosaic tile damage using LPIPS and image comparison',
     packages=find_packages(),
     install_requires=[

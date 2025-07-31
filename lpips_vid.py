@@ -147,6 +147,8 @@ if __name__ == "__main__":
 
         now = datetime.now().strftime("%H:%M")
         if now == target_time:
+
+            # While person in front of camera, time.sleep(60)
             current_image = take_photo(base_filename='Bench')
             if current_image:
                 score(before_file_name=current_image.split('.')[0],

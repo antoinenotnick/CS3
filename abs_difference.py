@@ -23,10 +23,12 @@ def abs_diff(before_file_path, after_file_path, save_dir='images/diff_output'):
     contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     # Draw bounding boxes around differences
+    bounding_box_count = 0
     for contour in contours:
         if cv2.contourArea(contour) > 100:  # Filter small noise
             x, y, w, h = cv2.boundingRect(contour)
             cv2.rectangle(image1, (x, y), (x + w, y + h), (0, 0, 255), 2) # Red rectangle
+            bounding_box_count += 1
 
     # Save result
     os.makedirs(save_dir, exist_ok=True)
@@ -34,6 +36,7 @@ def abs_diff(before_file_path, after_file_path, save_dir='images/diff_output'):
     save_path = os.path.join(save_dir, f"diff_{timestamp}.jpg")
     cv2.imwrite(save_path, image1)
     print(f"Saved diff image to: {save_path}")
+    print(f"Number of differences detected: {bounding_box_count}")
 
     # Display results
     cv2.imshow("Differences", image1)
