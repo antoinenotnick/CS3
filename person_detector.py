@@ -34,9 +34,9 @@ class PersonDetector:
                 # Handle both numpy arrays and lists
                 class_ids = detections.class_id
                 if isinstance(class_ids, np.ndarray):
-                    person_detected = np.any(class_ids == 0)
+                    person_detected = np.any(class_ids == 1)
                 else:
-                    person_detected = any(class_id == 0 for class_id in class_ids)
+                    person_detected = any(class_id == 1 for class_id in class_ids)
 
                 if person_detected:
                     print("Person detected in frame!")

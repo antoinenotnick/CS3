@@ -11,7 +11,9 @@ from datetime import datetime
 import csv
 import numpy as np
 from skimage.exposure import match_histograms
-from person_detector import PersonDetector
+import supervision as sv
+from rfdetr import RFDETRNano
+from rfdetr.util.coco_classes import COCO_CLASSES
 
 grid_rows = 8
 grid_cols = 8
@@ -29,8 +31,6 @@ target_times = [
         "17:00"
     ] # Times when the camera takes a picture
 # Default: Hourly from 09:00 to 17:00
-
-person_detector = PersonDetector(confidence_threshold=0.5)
 
 def load_image(path, reference_path=None):
     img = Image.open(path).convert("RGB").resize((512, 512))
@@ -145,16 +145,27 @@ if __name__ == "__main__":
     # Take reference image once
     reference_image = take_photo(base_filename='OriginalBench')
 
+    model = RFDETRNano()
+    cap = cv2.VideoCapture(0)
+
     while True:
         target_time = target_times[target_times_i]
 
         now = datetime.now().strftime("%H:%M")
         if now == target_time:
 
-            # Check if person is in front of camera before taking photo
-            if person_detector.capture_and_check_person():
-                # Person detected - wait for clear view
-                person_detector.wait_for_clear_view()
+            ret, frame = cap.read()
+            if not ret:
+                print("Failed to capture frame from webcam.")
+                continue
+
+            detections = model.predict(frame[:, :, ::1], threshold=0.5)
+
+            if detections.class_id.any() == 1:
+                print("Person detected in frame!")
+                for i, class_id in enumerate(detections.class_id):
+                    if class_id == 1:  # Person class in COCO is 0
+                        box = detections.xyxy[i]
 
             current_image = take_photo(base_filename='Bench')
             if current_image:
