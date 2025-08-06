@@ -9,6 +9,8 @@ import os
 import supervision as sv
 from rfdetr import RFDETRNano
 from rfdetr.util.coco_classes import COCO_CLASSES
+import time
+from datetime import datetime
 
 torch.serialization.add_safe_globals([argparse.Namespace])
 
@@ -40,51 +42,44 @@ def draw_box(draw, box, label, color, font):
     )
     draw.text((x1 + 5, label_y + 2), label, fill='white', font=font)
 
-def create_background_mask(frame, human_detections, padding=20):
-    """Create a mask that excludes human areas from analysis"""
-    mask = np.ones(frame.shape[:2], dtype=np.uint8) * 255
-    
+def blur_human_regions(frame, human_detections, blur_intensity=51):
+    blurred_frame = frame.copy()
+   
     for detection in human_detections:
-        x1, y1, x2, y2 = detection
-        x1 = max(0, int(x1) - padding)
-        y1 = max(0, int(y1) - padding)
-        x2 = min(frame.shape[1], int(x2) + padding)
-        y2 = min(frame.shape[0], int(y2) + padding)
-        
-        mask[y1:y2, x1:x2] = 0
-    
-    return mask
+        x1, y1, x2, y2 = map(int, detection)
+       
+        padding = 20
+        x1 = max(0, x1 - padding)
+        y1 = max(0, y1 - padding)
+        x2 = min(frame.shape[1], x2 + padding)
+        y2 = min(frame.shape[0], y2 + padding)
+       
+        human_region = blurred_frame[y1:y2, x1:x2]
+        blurred_region = cv2.GaussianBlur(human_region, (blur_intensity, blur_intensity), 0)
+        blurred_frame[y1:y2, x1:x2] = blurred_region
+   
+    return blurred_frame
 
-def apply_background_mask(frame, mask):
-    """Apply mask to frame, setting human areas to black"""
-    masked_frame = frame.copy()
-    masked_frame[mask == 0] = [0, 0, 0]
-    return masked_frame
-
-def save_temp_frame(frame, temp_path="temp_frame.jpg"):
-    """Save frame temporarily for analysis"""
-    cv2.imwrite(temp_path, frame)
-    return temp_path
-
-def process(image_source, human_detections=None):
-    weights_path_RF = r"C:\Users\rishith\VSC\Tier1YOLOWeights.pt"
-    weights_path_YOLO = r"C:\Users\rishith\VSC\Tier2Weights.pt"
-    confidence_threshold_RF = 0.42
-    confidence_threshold_YOLO = 0.5
+def process_damage_analysis(frame, entry_time, exit_time):
+    weights_path_Tier1 = r"C:\Users\rishith\VSC\Tier1YOLOWeights.pt"
+    weights_path_Tier2 = r"C:\Users\rishith\VSC\Tier2Weights.pt"
+    confidence_threshold_Tier1 = 0.42
+    confidence_threshold_Tier2 = 0.5
     save_annotated = True
-    output_path = None
 
-    modelRF = YOLO(weights_path_RF)
-    YOLOmodel = YOLO(weights_path_YOLO)
-    
-    if isinstance(image_source, str):
-        original_image = Image.open(image_source)
-        image_path = image_source
-    else:
-        temp_path = save_temp_frame(image_source)
-        original_image = Image.open(temp_path)
-        image_path = temp_path
-    
+    print(f"\n{'='*60}")
+    print(f"DAMAGE ANALYSIS REPORT")
+    print(f"{'='*60}")
+    print(f"Human entered scene: {entry_time}")
+    print(f"Human left scene: {exit_time}")
+    print(f"Scene duration: {(exit_time.replace(microsecond=0) - entry_time.replace(microsecond=0))}")
+    print(f"{'='*60}")
+
+    modelRF = YOLO(weights_path_Tier1)
+    YOLOmodel = YOLO(weights_path_Tier2)
+   
+    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    original_image = Image.fromarray(frame_rgb)
     annotated_image = original_image.copy()
     draw = ImageDraw.Draw(annotated_image)
 
@@ -93,14 +88,9 @@ def process(image_source, human_detections=None):
     except:
         font = ImageFont.load_default()
 
-    colors = [
-        '#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#FF00FF',
-        '#00FFFF', '#FFA500', '#800080', '#FFC0CB', '#A52A2A'
-    ]
-
     bounding_boxes = []
 
-    results_stage1 = modelRF(image_path, conf=confidence_threshold_RF)
+    results_stage1 = modelRF(frame, conf=confidence_threshold_Tier1)
     result1 = results_stage1[0]
     stage1_boxes = []
 
@@ -136,7 +126,7 @@ def process(image_source, human_detections=None):
             bounding_boxes.append(bbox_data)
             stage1_boxes.append([x1, y1, x2, y2])
 
-    results_stage2 = YOLOmodel(image_path, conf=confidence_threshold_YOLO)
+    results_stage2 = YOLOmodel(frame, conf=confidence_threshold_Tier2)
     result2 = results_stage2[0]
 
     if result2.boxes is not None:
@@ -180,64 +170,96 @@ def process(image_source, human_detections=None):
             bounding_boxes.append(bbox_data)
 
     if save_annotated:
-        if output_path is None:
-            if isinstance(image_source, str):
-                base_name = os.path.splitext(os.path.basename(image_source))[0]
-                output_dir = os.path.dirname(image_source)
-            else:
-                base_name = "live_frame"
-                output_dir = "."
-            output_path = os.path.join(output_dir, f"{base_name}_annotated.jpg")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_path = f"damage_report_{timestamp}.jpg"
         annotated_image.save(output_path)
-        print(f"Annotated image saved to: {output_path}")
+        print(f"Damage analysis image saved to: {output_path}")
 
-    print(f"\nDetection Summary:")
-    print(f"Image size: {original_image.size[0]} x {original_image.size[1]}")
-    print(f"Total detections: {len(bounding_boxes)}")
-
-    if len(bounding_boxes) > 0:
-        print("\nDetected objects:")
-        for bbox in bounding_boxes:
-            print(f"  • {bbox['class_name']} (confidence: {bbox['confidence']:.2f})")
-            print(f"    Location: ({bbox['bbox']['x1']:.0f}, {bbox['bbox']['y1']:.0f}) to ({bbox['bbox']['x2']:.0f}, {bbox['bbox']['y2']:.0f})")
-            print(f"    Size: {bbox['bbox']['width']:.0f} x {bbox['bbox']['height']:.0f}")
-            print(f"    Center: ({bbox['bbox']['center_x']:.0f}, {bbox['bbox']['center_y']:.0f})")
-    else:
-        print("No objects detected above confidence threshold")
+    print(f"Frame size: {original_image.size}")
+    print(f"Total damage detections: {len(bounding_boxes)}")
     
-    print(f"\nDetection Summary:")
-    print(f"Image size: {original_image.size}")
-    print(f"Total unique detections: {len(bounding_boxes)}")
+    if len(bounding_boxes) > 0:
+        print(f"\nDamage detected:")
+        damage_summary = {}
+        for bbox in bounding_boxes:
+            damage_type = bbox['class_name']
+            if damage_type not in damage_summary:
+                damage_summary[damage_type] = 0
+            damage_summary[damage_type] += 1
+            print(f" • [{bbox['model']}] {bbox['class_name']} (confidence: {bbox['confidence']:.2f}) at center ({bbox['bbox']['center_x']:.0f}, {bbox['bbox']['center_y']:.0f})")
+        
+        print(f"\nDamage Summary:")
+        for damage_type, count in damage_summary.items():
+            print(f" • {damage_type}: {count} instance(s)")
+    else:
+        print("No damage detected in scene")
+    
+    print(f"{'='*60}\n")
 
-    for bbox in bounding_boxes:
-        print(f" • [{bbox['model']}] {bbox['class_name']} ({bbox['confidence']:.2f}) at center ({bbox['bbox']['center_x']:.0f}, {bbox['bbox']['center_y']:.0f})")
-
-    if isinstance(image_source, np.ndarray) and os.path.exists("temp_frame.jpg"):
-        os.remove("temp_frame.jpg")
+class HumanTracker:
+    def __init__(self):
+        self.human_present = False
+        self.entry_time = None
+        self.last_frame = None
+        self.no_human_frames = 0
+        self.confirmation_frames = 5  # Frames to wait before confirming human left
+    
+    def update(self, frame, human_detected):
+        current_time = datetime.now()
+        
+        if human_detected and not self.human_present:
+            # Human just entered
+            self.human_present = True
+            self.entry_time = current_time
+            self.no_human_frames = 0
+            print(f"Human entered scene at {current_time.strftime('%H:%M:%S')}")
+            
+        elif human_detected and self.human_present:
+            # Human still present
+            self.no_human_frames = 0
+            
+        elif not human_detected and self.human_present:
+            # Human might have left, start counting frames
+            self.no_human_frames += 1
+            
+            if self.no_human_frames >= self.confirmation_frames:
+                # Human has definitely left
+                exit_time = current_time
+                print(f"Human left scene at {exit_time.strftime('%H:%M:%S')}")
+                
+                # Process damage analysis
+                if self.last_frame is not None:
+                    process_damage_analysis(self.last_frame, self.entry_time, exit_time)
+                
+                # Reset tracker
+                self.human_present = False
+                self.entry_time = None
+                self.no_human_frames = 0
+        
+        # Always store the last frame when human was present or just left
+        if self.human_present or self.no_human_frames > 0:
+            self.last_frame = frame.copy()
 
 model = RFDETRNano()
 cap = cv2.VideoCapture(0)
+tracker = HumanTracker()
+
+print("Starting damage detection system...")
+print("System will analyze for damage after humans leave the scene")
+print("Press 'q' to quit\n")
 
 while True:
     success, frame = cap.read()
     if not success:
         break
-    
+   
     detections = model.predict(frame[:, :, ::1], threshold=0.5)
+   
+    human_indices = np.where(detections.class_id == 1)[0]
+    human_detected = len(human_indices) > 0
     
-    if detections.class_id.any() == 1:
-        human_boxes = []
-        for i, class_id in enumerate(detections.class_id):
-            if class_id == 1:  # Person class in COCO is 0
-                box = detections.xyxy[i]
-                human_boxes.append(box)
-        
-        if human_boxes:
-            background_mask = create_background_mask(frame, human_boxes)
-            masked_frame = apply_background_mask(frame, background_mask)
-            
-            print("Human detected! Analyzing background only...")
-            process(masked_frame, human_boxes)
+    # Update human tracking
+    tracker.update(frame, human_detected)
 
     labels = [
         f"{COCO_CLASSES[class_id]} {confidence:.2f}"
@@ -245,9 +267,18 @@ while True:
         in zip(detections.class_id, detections.confidence)
     ]
 
-    annotated_frame = frame.copy()
+    if human_detected:
+        human_boxes = detections.xyxy[human_indices]
+        annotated_frame = blur_human_regions(frame, human_boxes)
+    else:
+        annotated_frame = frame.copy()
+    
     annotated_frame = sv.BoxAnnotator().annotate(annotated_frame, detections)
     annotated_frame = sv.LabelAnnotator().annotate(annotated_frame, detections, labels)
+
+    # Add status text to frame
+    status_text = "Human Present - Analysis pending..." if tracker.human_present else "Monitoring for humans..."
+    cv2.putText(annotated_frame, status_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0) if not tracker.human_present else (0, 165, 255), 2)
 
     cv2.imshow("Webcam", annotated_frame)
 

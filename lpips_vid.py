@@ -160,13 +160,21 @@ if __name__ == "__main__":
                 continue
 
             detections = model.predict(frame[:, :, ::1], threshold=0.5)
+   
+            # Check if humans are detected (class_id 1 is person in COCO)
+            human_indices = np.where(detections.class_id == 1)[0]
+        
+            while len(human_indices) > 0:
+                print(f"Human detected! Waiting for person to move out of the way...")
+                time.sleep(5)
+                ret, frame = cap.read()
+                if not ret:
+                    print("Failed to capture frame.")
+                    continue
 
-            if detections.class_id.any() == 1:
-                print("Person detected in frame!")
-                for i, class_id in enumerate(detections.class_id):
-                    if class_id == 1:  # Person class in COCO is 0
-                        box = detections.xyxy[i]
-
+                detections = model.predict(frame[:, :, ::1], threshold=0.5)
+                human_indices = np.where(detections.class_id == 1)[0]
+                
             current_image = take_photo(base_filename='Bench')
             if current_image:
                 score(before_file_name=current_image.split('.')[0],
