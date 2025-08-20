@@ -98,18 +98,3 @@ if __name__ == "__main__":
         for rows, cols in GRID_SIZES:
             print(f"\n--- Running for Grid Size: {rows}x{cols} ---")
             score(grid_rows=rows, grid_cols=cols, threshold=threshold)
-
-"""
-Plan:
-
-! Detect when people come in front of the camera with a yolo model
-! Optimize threshold and grid values
-
-Additional ideas: 
-(Last priority) Solve Brightness Problem with abs_difference
-
-Add YOLO object detection integration if people appear in the image.
-
-- Done: move on to yolo prototype, gpt image analysis, and lidar when we get our hands on a camera
-
-"""
